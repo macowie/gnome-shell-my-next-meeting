@@ -165,8 +165,13 @@ class Indicator extends PanelMenu.Button {
 
     _render(rebuildOpenMenu = false) {
         const now = Date.now() / 1000;
-        const upcoming = this._events.filter(e => e.end > now);
-        const next = upcoming[0];
+        const endOfDay = new Date();
+        endOfDay.setHours(24, 0, 0, 0);
+
+        const currentAndUpcoming = this._events.filter(e => e.end > now);
+        const next = currentAndUpcoming[0]; // Always grab the next event for the top entry, even if it's not today
+        const ongoing = currentAndUpcoming.slice(1).filter(e.start <= now) // Also grab any other ongoing event as joinable
+        const upcomingToday = currentAndUpcoming.slice(1).filter(e.start > now).filter(e => e.start < endOfDay / 1000); // Rest of the events today
 
         this._label.text = !next ? _('No meetings')
             : next.start <= now ? `${_('now')}: ${next.title}`
@@ -179,24 +184,33 @@ class Indicator extends PanelMenu.Button {
         if (!next)
             return;
 
-        const join = new PopupMenu.PopupMenuItem(_('Join meeting'));
-        join.setSensitive(!!next.url);
-        join.connect('activate', () => Gio.AppInfo.launch_default_for_uri(next.url, null));
-        this.menu.addMenuItem(join);
+        addJoinMeetingEntry(next, "Join meeting")
+        for (const calEvent of ongoing) {
+            addJoinMeetingEntry(calEvent, `Join  ${calEvent.title}`)
+        }
 
-        const endOfDay = new Date();
-        endOfDay.setHours(24, 0, 0, 0);
-        const rest = upcoming.slice(1).filter(e => e.start < endOfDay / 1000);
-        if (rest.length)
+        if (upcomingToday.length)
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        for (const e of rest) {
-            const time = GLib.DateTime.new_from_unix_local(e.start).format('%R');
-            const item = new PopupMenu.PopupMenuItem(`${time}  ${e.title}`);
-            item.connect('activate', () => Gio.AppInfo.get_default_for_type('text/calendar', false)
-                ?.launch([], global.create_app_launch_context(0, -1)));
-            this.menu.addMenuItem(item);
+        for (const calEvent of upcomingToday) {
+            addFutureTodayEntry(calEvent)
         }
     }
+
+    addJoinMeetingEntry(calEvent, label) {
+        const item = new PopupMenu.PopupMenuItem(_(label));
+        item.setSensitive(!!calEvent.url);
+        item.connect('activate', () => Gio.AppInfo.launch_default_for_uri(calEvent.url, null));
+        this.menu.addMenuItem(item);
+    }
+
+    addFutureTodayEntry(calEvent) {
+        const time = GLib.DateTime.new_from_unix_local(calEvent.start).format('%R');
+        const item = new PopupMenu.PopupMenuItem(`${time}  ${calEvent.title}`);
+        item.connect('activate', () => Gio.AppInfo.get_default_for_type('text/calendar', false)
+            ?.launch([], global.create_app_launch_context(0, -1)));
+        this.menu.addMenuItem(item);
+    }
+
 
     destroy() {
         this._gen = -1; // drop any in-flight fetch / registry callback
