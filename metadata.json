@@ -1,0 +1,9 @@
+{
+  "name": "My Next Meeting",
+  "description": "Display the next upcoming event in your topbar, and click to join",
+  "uuid": "my-next-meeting@cowie.me",
+  "shell-version": [
+    "50"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.my-next-meeting"
+}
