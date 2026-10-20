@@ -87,12 +87,12 @@ class Indicator extends PanelMenu.Button {
                 this._registry = EDataServer.SourceRegistry.new_finish(res);
             } catch (e) {
                 this._label.text = _('Calendar unavailable');
-                Main.error(`my-next-meeting: ${e.message}`);
+                console.error(`my-next-meeting: ${e.message}`);
                 return;
             }
             if (this._gen === -1) // destroyed before the registry arrived
                 return;
-            Main.debug('my-next-meeting: source registry ready');
+            console.debug('my-next-meeting: source registry ready');
             this._registryIds = ['source-added', 'source-removed', 'source-changed']
                 .map(sig => this._registry.connect(sig, () => this._fetch()));
             this._fetch();
@@ -173,7 +173,7 @@ class Indicator extends PanelMenu.Button {
         const now = Math.floor(Date.now() / 1000);
         const until = now + LOOKAHEAD_DAYS * 86400;
         const sexp = `(occur-in-time-range? (make-time "${ECal.isodate_from_time_t(now)}") (make-time "${ECal.isodate_from_time_t(until)}"))`;
-        Main.debug(`my-next-meeting: fetch started: ${sources.length} source(s) [${sources.map(s => s.display_name).join(', ') || 'none'}], window ${ECal.isodate_from_time_t(now)} .. ${ECal.isodate_from_time_t(until)}`);
+        console.debug(`my-next-meeting: fetch started: ${sources.length} source(s) [${sources.map(s => s.display_name).join(', ') || 'none'}], window ${ECal.isodate_from_time_t(now)} .. ${ECal.isodate_from_time_t(until)}`);
 
         const perSource = await Promise.all(sources.map(async source => {
             try {
@@ -181,10 +181,10 @@ class Indicator extends PanelMenu.Button {
                 if (!client) {
                     client = await connectClient(source);
                     this._clients.set(source.uid, client);
-                    Main.debug(`my-next-meeting: ${source.display_name}: connected new client`);
+                    console.debug(`my-next-meeting: ${source.display_name}: connected new client`);
                 }
                 const objs = withoutDetachedDuplicates(await getObjectList(client, sexp));
-                Main.debug(`my-next-meeting: ${source.display_name}: ${objs.length} object(s) in range`);
+                console.debug(`my-next-meeting: ${source.display_name}: ${objs.length} object(s) in range`);
                 const events = [];
                 for (const obj of objs) {
                     client.generate_instances_for_object_sync(obj, now, until, null, (ic, start, end) => {
@@ -199,10 +199,10 @@ class Indicator extends PanelMenu.Button {
                         return true;
                     });
                 }
-                Main.debug(`my-next-meeting: ${source.display_name}: ${events.length} event(s) after expansion`);
+                console.debug(`my-next-meeting: ${source.display_name}: ${events.length} event(s) after expansion`);
                 return events;
             } catch (e) {
-                Main.warning(`my-next-meeting: ${source.display_name}: ${e.message}`);
+                console.warn(`my-next-meeting: ${source.display_name}: ${e.message}`);
                 this._clients.delete(source.uid);
                 return [];
             }
@@ -211,7 +211,7 @@ class Indicator extends PanelMenu.Button {
         if (gen !== this._gen) // a newer fetch started (or we were destroyed) meanwhile
             return;
         const events = perSource.flat().sort((a, b) => a.start - b.start);
-        Main.debug(`my-next-meeting: fetch finished: ${events.length} event(s) total`);
+        console.debug(`my-next-meeting: fetch finished: ${events.length} event(s) total`);
         this._events = events;
         this._render(rebuildOpenMenu);
     }
