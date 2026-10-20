@@ -64,6 +64,55 @@ const withoutDetachedDuplicates = objs => {
 
 const toUnix = t => t.as_timet_with_zone(t.get_timezone() ?? ICalGLib.Timezone.get_utc_timezone());
 
+const hasRRule = obj => !!obj.get_first_property(ICalGLib.PropertyKind.RRULE);
+
+// expandInstances runs the C recurrence expansion for one component.
+//
+// generate_instances_for_object_sync() returns void, so it has no error channel of
+// its own: any failure inside the callback (including a JS exception) is swallowed by
+// GJS and simply aborts the expansion, which looks like "no instances found".
+// So: catch inside the callback, count invocations and fall back to the raw DTSTART
+// for non-recurring events.
+const expandInstances = (client, obj, now, until) => {
+    const instances = [];
+    let callbackError = null;
+    try {
+        client.generate_instances_for_object_sync(obj, now, until, null, (ic, start, end) => {
+            try {
+                instances.push({ic, start, end});
+            } catch (e) {
+                callbackError = e;
+                console.warn(`my-next-meeting: expansion callback failed: ${e.message}`);
+            }
+            return true;
+        });
+    } catch (e) {
+        console.warn(`my-next-meeting: expansion threw for ${obj.get_uid()}: ${e.message}`);
+        return [];
+    }
+
+    if (instances.length)
+        return instances;
+
+    if (callbackError)
+        return [];
+
+    // No instances: either the event is out of range (recurring master whose
+    // occurrences are elsewhere) or expansion silently produced nothing.
+    if (hasRRule(obj))
+        return [];
+
+    // Non-recurring event: trust DTSTART/DTEND directly.
+    const start = obj.get_dtstart();
+    if (!start || start.is_null_time())
+        return [];
+    const dtend = obj.get_dtend();
+    const end = dtend && !dtend.is_null_time()
+        ? dtend
+        : start.add(ICalGLib.Duration.from_int(3600));
+    return [{ic: obj, start, end}];
+};
+
 function eventLabel(calEvent, now) {
     return calEvent.start <= now ? `${_('now')}: ${calEvent.title}`
     : `${_('in')} ${formatUntil(calEvent.start - now)}: ${calEvent.title}`;
@@ -188,17 +237,24 @@ class Indicator extends PanelMenu.Button {
                     console.log(`my-next-meeting: ${source.display_name}: ${objs.length} object(s) in range`);
                     const events = [];
                     for (const obj of objs) {
-                        client.generate_instances_for_object_sync(obj, now, until, null, (ic, start, end) => {
+                        const instances = expandInstances(client, obj, now, until);
+                        if (!instances.length) {
+                            const dtstart = obj.get_dtstart();
+                            console.log(`my-next-meeting: ${source.display_name}: no instance for ${obj.get_uid()} (dtstart ${dtstart?.as_ical_string() ?? 'none'}, recurring ${hasRRule(obj)})`);
+                            continue;
+                        }
+                        for (const {ic, start, end} of instances) {
+                            if (!start)
+                                continue;
                             if (!start.is_date() && ic.get_status() !== ICalGLib.PropertyStatus.CANCELLED) {
                                 events.push({
                                     title: ic.get_summary() || _('(No title)'),
                                     start: toUnix(start),
-                                    end: toUnix(end),
+                                    end: toUnix(end ?? start),
                                     url: findMeetingUrl(ic.as_ical_string()),
                                 });
                             }
-                            return true;
-                        });
+                        }
                     }
                     console.log(`my-next-meeting: ${source.display_name}: ${events.length} event(s) after expansion`);
                     return events;
