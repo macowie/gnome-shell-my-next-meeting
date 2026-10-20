@@ -64,6 +64,11 @@ const withoutDetachedDuplicates = objs => {
 
 const toUnix = t => t.as_timet_with_zone(t.get_timezone() ?? ICalGLib.Timezone.get_utc_timezone());
 
+function eventLabel(calEvent, now) {
+    return calEvent.start <= now ? `${_('now')}: ${calEvent.title}`
+    : `${_('in')} ${formatUntil(calEvent.start - now)}: ${calEvent.title}`;
+}
+
 const Indicator = GObject.registerClass(
 class Indicator extends PanelMenu.Button {
     _init(settings) {
@@ -95,6 +100,7 @@ class Indicator extends PanelMenu.Button {
             settings.connect('changed::hidden-calendars', () => this._fetch()),
             settings.connect('changed::max-width', () => this._applyWidth()),
             settings.connect('changed::position-in-panel', () => this._applyPosition()),
+            settings.connect('changed::early-join-minutes', () => this._render()),
         ];
         this._applyWidth();
 
@@ -204,17 +210,17 @@ class Indicator extends PanelMenu.Button {
 
     _render(rebuildOpenMenu = false) {
         const now = Date.now() / 1000;
+        const threshold = now + this._settings.get_int('early-join-minutes') * 60; // Shift cutoff so meetings can be joined early
         const endOfDay = new Date();
         endOfDay.setHours(24, 0, 0, 0);
 
-        const currentAndUpcoming = this._events.filter(e => e.end > now);
+        const currentAndUpcoming = this._events.filter(e => e.end > threshold);
         const next = currentAndUpcoming[0]; // Always grab the next event for the top entry, even if it's not today
-        const ongoing = currentAndUpcoming.slice(1).filter(e => e.start <= now) // Also grab any other ongoing event as joinable
-        const upcomingToday = currentAndUpcoming.slice(1).filter(e => e.start > now).filter(e => e.start < endOfDay / 1000); // Rest of the events today
+        const ongoing = currentAndUpcoming.slice(1).filter(e => e.start <= threshold) // Also grab any other ongoing event as joinable
+        const upcomingToday = currentAndUpcoming.slice(1).filter(e => e.start > threshold).filter(e => e.start < endOfDay / 1000); // Rest of the events today
 
         this._label.text = !next ? _('No meetings')
-            : next.start <= now ? `${_('now')}: ${next.title}`
-            : `${_('in')} ${formatUntil(next.start - now)}: ${next.title}`;
+            : eventLabel(next, now);
 
         // Don't rebuild under the user's pointer, except right after an open-triggered fetch.
         if (this.menu.isOpen && !rebuildOpenMenu)
@@ -225,13 +231,13 @@ class Indicator extends PanelMenu.Button {
 
         addJoinMeetingEntry(next, "Join meeting")
         for (const calEvent of ongoing) {
-            addJoinMeetingEntry(calEvent, `Join  ${calEvent.title}`)
+            addJoinMeetingEntry(calEvent, eventLabel(calEvent, now));
         }
 
         if (upcomingToday.length)
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         for (const calEvent of upcomingToday) {
-            addFutureTodayEntry(calEvent)
+            addFutureTodayEntry(calEvent);
         }
     }
 

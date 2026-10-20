@@ -35,6 +35,16 @@ export default class MyNextMeetingPreferences extends ExtensionPreferences {
         position.add(positionRow);
         page.add(position);
 
+        const meetings = new Adw.PreferencesGroup({title: _('Meetings')});
+        const earlyJoin = new Adw.SpinRow({
+            title: _('Early join window'),
+            subtitle: _('Minutes before the start time a meeting becomes joinable'),
+            adjustment: new Gtk.Adjustment({lower: 0, upper: 60, step_increment: 1}),
+        });
+        settings.bind('early-join-minutes', earlyJoin, 'value', Gio.SettingsBindFlags.DEFAULT);
+        meetings.add(earlyJoin);
+        page.add(meetings);
+
         const calendars = new Adw.PreferencesGroup({
             title: _('Calendars'),
             description: _('Calendars from GNOME Calendar to include'),
