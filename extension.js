@@ -244,15 +244,24 @@ class Indicator extends PanelMenu.Button {
                             continue;
                         }
                         for (const {ic, start, end} of instances) {
-                            if (!start)
+                            if (!start) {
+                                console.log(`my-next-meeting: ${source.display_name}: skip, start is null`);
                                 continue;
-                            if (!start.is_date() && ic.get_status() !== ICalGLib.PropertyStatus.CANCELLED) {
+                            }
+                            const isDate = start.is_date();
+                            const status = ic.get_status();
+                            if (!isDate && status !== ICalGLib.PropertyStatus.CANCELLED) {
+                                const su = toUnix(start);
+                                const eu = toUnix(end ?? start);
+                                console.log(`my-next-meeting: ${source.display_name}: keep ${ic.get_summary()} [${su} .. ${eu}] status=${status}`);
                                 events.push({
                                     title: ic.get_summary() || _('(No title)'),
-                                    start: toUnix(start),
-                                    end: toUnix(end ?? start),
+                                    start: su,
+                                    end: eu,
                                     url: findMeetingUrl(ic.as_ical_string()),
                                 });
+                            } else {
+                                console.log(`my-next-meeting: ${source.display_name}: skip ${ic.get_summary()} isDate=${isDate} status=${status}`);
                             }
                         }
                     }
@@ -283,6 +292,7 @@ class Indicator extends PanelMenu.Button {
         endOfDay.setHours(24, 0, 0, 0);
 
         const currentAndUpcoming = this._events.filter(e => e.end > threshold);
+        console.log(`my-next-meeting: render: ${this._events.length} event(s), threshold=${threshold} (now=${now}), ${currentAndUpcoming.length} pass end>threshold`);
         const next = currentAndUpcoming[0]; // Always grab the next event for the top entry, even if it's not today
         const ongoing = currentAndUpcoming.slice(1).filter(e => e.start <= threshold) // Also grab any other ongoing event as joinable
         const upcomingToday = currentAndUpcoming.slice(1).filter(e => e.start > threshold).filter(e => e.start < endOfDay / 1000); // Rest of the events today
