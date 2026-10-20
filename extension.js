@@ -163,57 +163,61 @@ class Indicator extends PanelMenu.Button {
     }
 
     async _fetch(rebuildOpenMenu = false) {
-        if (!this._registry || this._gen === -1)
-            return;
-        const gen = this._gen = (this._gen ?? 0) + 1;
-        const hidden = this._settings.get_strv('hidden-calendars');
-        const sources = this._registry.list_sources(EDataServer.SOURCE_EXTENSION_CALENDAR)
-            .filter(s => s.enabled && !hidden.includes(s.uid));
+        try {
+            if (!this._registry || this._gen === -1)
+                return;
+            const gen = this._gen = (this._gen ?? 0) + 1;
+            const hidden = this._settings.get_strv('hidden-calendars');
+            const sources = this._registry.list_sources(EDataServer.SOURCE_EXTENSION_CALENDAR)
+                .filter(s => s.enabled && !hidden.includes(s.uid));
 
-        const now = Math.floor(Date.now() / 1000);
-        const until = now + LOOKAHEAD_DAYS * 86400;
-        const sexp = `(occur-in-time-range? (make-time "${ECal.isodate_from_time_t(now)}") (make-time "${ECal.isodate_from_time_t(until)}"))`;
-        console.debug(`my-next-meeting: fetch started: ${sources.length} source(s) [${sources.map(s => s.display_name).join(', ') || 'none'}], window ${ECal.isodate_from_time_t(now)} .. ${ECal.isodate_from_time_t(until)}`);
+            const now = Math.floor(Date.now() / 1000);
+            const until = now + LOOKAHEAD_DAYS * 86400;
+            const sexp = `(occur-in-time-range? (make-time "${ECal.isodate_from_time_t(now)}") (make-time "${ECal.isodate_from_time_t(until)}"))`;
+            console.debug(`my-next-meeting: fetch started: ${sources.length} source(s) [${sources.map(s => s.display_name).join(', ') || 'none'}], window ${ECal.isodate_from_time_t(now)} .. ${ECal.isodate_from_time_t(until)}`);
 
-        const perSource = await Promise.all(sources.map(async source => {
-            try {
-                let client = this._clients.get(source.uid);
-                if (!client) {
-                    client = await connectClient(source);
-                    this._clients.set(source.uid, client);
-                    console.debug(`my-next-meeting: ${source.display_name}: connected new client`);
+            const perSource = await Promise.all(sources.map(async source => {
+                try {
+                    let client = this._clients.get(source.uid);
+                    if (!client) {
+                        client = await connectClient(source);
+                        this._clients.set(source.uid, client);
+                        console.debug(`my-next-meeting: ${source.display_name}: connected new client`);
+                    }
+                    const objs = withoutDetachedDuplicates(await getObjectList(client, sexp));
+                    console.debug(`my-next-meeting: ${source.display_name}: ${objs.length} object(s) in range`);
+                    const events = [];
+                    for (const obj of objs) {
+                        client.generate_instances_for_object_sync(obj, now, until, null, (ic, start, end) => {
+                            if (!start.is_date() && ic.get_status() !== ICalGLib.PropertyStatus.CANCELLED) {
+                                events.push({
+                                    title: ic.get_summary() || _('(No title)'),
+                                    start: toUnix(start),
+                                    end: toUnix(end),
+                                    url: findMeetingUrl(ic.as_ical_string()),
+                                });
+                            }
+                            return true;
+                        });
+                    }
+                    console.debug(`my-next-meeting: ${source.display_name}: ${events.length} event(s) after expansion`);
+                    return events;
+                } catch (e) {
+                    console.warn(`my-next-meeting: ${source.display_name}: ${e.message}`);
+                    this._clients.delete(source.uid);
+                    return [];
                 }
-                const objs = withoutDetachedDuplicates(await getObjectList(client, sexp));
-                console.debug(`my-next-meeting: ${source.display_name}: ${objs.length} object(s) in range`);
-                const events = [];
-                for (const obj of objs) {
-                    client.generate_instances_for_object_sync(obj, now, until, null, (ic, start, end) => {
-                        if (!start.is_date() && ic.get_status() !== ICalGLib.PropertyStatus.CANCELLED) {
-                            events.push({
-                                title: ic.get_summary() || _('(No title)'),
-                                start: toUnix(start),
-                                end: toUnix(end),
-                                url: findMeetingUrl(ic.as_ical_string()),
-                            });
-                        }
-                        return true;
-                    });
-                }
-                console.debug(`my-next-meeting: ${source.display_name}: ${events.length} event(s) after expansion`);
-                return events;
-            } catch (e) {
-                console.warn(`my-next-meeting: ${source.display_name}: ${e.message}`);
-                this._clients.delete(source.uid);
-                return [];
-            }
-        }));
+            }));
 
-        if (gen !== this._gen) // a newer fetch started (or we were destroyed) meanwhile
-            return;
-        const events = perSource.flat().sort((a, b) => a.start - b.start);
-        console.debug(`my-next-meeting: fetch finished: ${events.length} event(s) total`);
-        this._events = events;
-        this._render(rebuildOpenMenu);
+            if (gen !== this._gen) // a newer fetch started (or we were destroyed) meanwhile
+                return;
+            const events = perSource.flat().sort((a, b) => a.start - b.start);
+            console.debug(`my-next-meeting: fetch finished: ${events.length} event(s) total`);
+            this._events = events;
+            this._render(rebuildOpenMenu);
+        } catch (e) {
+            console.warn(`my-next-meeting: fetch failed: ${e.message}`);
+        }
     }
 
     _render(rebuildOpenMenu = false) {
@@ -237,15 +241,15 @@ class Indicator extends PanelMenu.Button {
         if (!next)
             return;
 
-        addJoinMeetingEntry(next, "Join meeting")
+        this.addJoinMeetingEntry(next, "Join meeting")
         for (const calEvent of ongoing) {
-            addJoinMeetingEntry(calEvent, eventLabel(calEvent, now));
+            this.addJoinMeetingEntry(calEvent, eventLabel(calEvent, now));
         }
 
         if (upcomingToday.length)
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         for (const calEvent of upcomingToday) {
-            addFutureTodayEntry(calEvent);
+            this.addFutureTodayEntry(calEvent);
         }
     }
 
