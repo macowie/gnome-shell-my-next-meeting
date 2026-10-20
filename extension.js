@@ -94,6 +94,7 @@ class Indicator extends PanelMenu.Button {
         this._settingsIds = [
             settings.connect('changed::hidden-calendars', () => this._fetch()),
             settings.connect('changed::max-width', () => this._applyWidth()),
+            settings.connect('changed::position-in-panel', () => this._applyPosition()),
         ];
         this._applyWidth();
 
@@ -114,6 +115,44 @@ class Indicator extends PanelMenu.Button {
 
     _applyWidth() {
         this._label.style = `max-width: ${this._settings.get_int('max-width')}px;`;
+    }
+
+    // Mirrors Vitals' panel positions. Returns [alignment, position] and sets the
+    // menu arrow so the dropdown opens from the correct edge of the button.
+    _positionInPanel() {
+        let alignment, position, arrowPos;
+        switch (this._settings.get_int('position-in-panel')) {
+        case 0: // left
+            alignment = 'left'; position = -1; arrowPos = 1; break;
+        case 1: // center
+            alignment = 'center'; position = -1; arrowPos = 0.5; break;
+        case 2: // right
+            alignment = 'right'; position = 0; arrowPos = 0; break;
+        case 3: // far left
+            alignment = 'left'; position = 0; arrowPos = 1; break;
+        case 4: // far right (default: the historical right-most spot)
+        default:
+            alignment = 'right'; position = -1; arrowPos = 0; break;
+        }
+        this.menu._arrowAlignment = arrowPos;
+        return [alignment, position];
+    }
+
+    // Re-parent the button into the selected box when the preference changes.
+    _applyPosition() {
+        const parent = this.get_parent();
+        if (parent)
+            parent.remove_child(this);
+        const [alignment, position] = this._positionInPanel();
+        const box = {
+            left: Main.panel._leftBox,
+            center: Main.panel._centerBox,
+            right: Main.panel._rightBox,
+        }[alignment];
+        if (position >= 0 && position < box.get_n_children())
+            box.insert_child_at_index(this, position);
+        else
+            box.add_child(this);
     }
 
     async _fetch(rebuildOpenMenu = false) {
@@ -243,7 +282,12 @@ class HelpIndicator extends PanelMenu.Button {
 export default class MyNextMeetingExtension extends Extension {
     enable() {
         this._indicator = loadError ? new HelpIndicator() : new Indicator(this.getSettings());
-        Main.panel.addToStatusArea(this.uuid, this._indicator);
+        if (loadError) {
+            Main.panel.addToStatusArea(this.uuid, this._indicator);
+        } else {
+            const [alignment, position] = this._indicator._positionInPanel();
+            Main.panel.addToStatusArea(this.uuid, this._indicator, position, alignment);
+        }
     }
 
     disable() {

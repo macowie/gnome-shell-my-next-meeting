@@ -6,7 +6,7 @@ GNOME Shell extension that shows your next meeting in the top bar, e.g. `in 5min
   - **Join meeting** opens the event's Google Meet or Zoom link.
   - The rest of today's events are listed below; clicking one opens your calendar app.
 - Reads every calendar that GNOME Calendar shows, through Evolution Data Server.
-- Settings let you turn off individual calendars and set a maximum label width.
+- Settings let you turn off individual calendars, set a maximum label width, and choose where in the top bar the indicator sits (left, center, right, far left, far right).
 
 Requires GNOME Shell 50.
 

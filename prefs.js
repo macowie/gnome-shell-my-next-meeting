@@ -22,6 +22,19 @@ export default class MyNextMeetingPreferences extends ExtensionPreferences {
         appearance.add(width);
         page.add(appearance);
 
+        const position = new Adw.PreferencesGroup({title: _('Position')});
+        const positionCombo = new Gtk.ComboBoxText();
+        for (const label of [
+            _('Left'), _('Center'), _('Right'), _('Far Left'), _('Far Right'),
+        ])
+            positionCombo.append_text(label);
+        settings.bind('position-in-panel', positionCombo, 'active', Gio.SettingsBindFlags.DEFAULT);
+        const positionRow = new Adw.ActionRow({title: _('Position in panel')});
+        positionRow.set_activatable_widget(positionCombo);
+        positionRow.add_suffix(positionCombo);
+        position.add(positionRow);
+        page.add(position);
+
         const calendars = new Adw.PreferencesGroup({
             title: _('Calendars'),
             description: _('Calendars from GNOME Calendar to include'),
