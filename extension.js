@@ -64,7 +64,16 @@ const withoutDetachedDuplicates = objs => {
 
 const toUnix = t => t.as_timet_with_zone(t.get_timezone() ?? ICalGLib.Timezone.get_utc_timezone());
 
-const hasRRule = obj => !!obj.get_first_property(ICalGLib.PropertyKind.RRULE);
+const hasRRule = obj => !!obj.get_first_property(ICalGLib.PropertyKind.RRULE_PROPERTY);
+
+// ICal.Component.get_status() throws for events without a STATUS property: libical
+// returns 0, which is not a member of the PropertyStatus enum, so GJS refuses to
+// convert it ("0 is not a valid value for enumeration PropertyStatus"). Read the
+// property as text instead; a missing STATUS means the event is not cancelled.
+const statusOf = ic => {
+    const prop = ic.get_first_property(ICalGLib.PropertyKind.STATUS_PROPERTY);
+    return prop ? (prop.get_value_as_string() ?? '') : '';
+};
 
 // expandInstances runs the C recurrence expansion for one component.
 //
@@ -249,8 +258,9 @@ class Indicator extends PanelMenu.Button {
                                 continue;
                             }
                             const isDate = start.is_date();
-                            const status = ic.get_status();
-                            if (!isDate && status !== ICalGLib.PropertyStatus.CANCELLED) {
+                            const status = statusOf(ic);
+                            const cancelled = status.toUpperCase() === 'CANCELLED';
+                            if (!isDate && !cancelled) {
                                 const su = toUnix(start);
                                 const eu = toUnix(end ?? start);
                                 console.log(`my-next-meeting: ${source.display_name}: keep ${ic.get_summary()} [${su} .. ${eu}] status=${status}`);
