@@ -32,7 +32,7 @@ import {ECal, EDataServer, ICalGLib, INSTALL_COMMAND, loadError} from './deps.js
 
 const LOOKAHEAD_DAYS = 7;
 const TICK_SECONDS = 30;
-// shortcut: polls EDS every 5 min instead of watching ECal.ClientView, upgrade if edits must show instantly.
+// shortcut: polls EDS every 30s at startup, then every 5 min instead of watching ECal.ClientView, upgrade if edits must show instantly.
 const FETCH_EVERY_TICKS = 10;
 
 const connectClient = source => new Promise((resolve, reject) => {
@@ -170,7 +170,7 @@ class Indicator extends PanelMenu.Button {
         });
 
         this._timer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, TICK_SECONDS, () => {
-            if (++this._ticks % FETCH_EVERY_TICKS === 0)
+            if (++this._ticks <= FETCH_EVERY_TICKS || this._ticks % FETCH_EVERY_TICKS === 0)
                 this._fetch();
             else
                 this._render();
