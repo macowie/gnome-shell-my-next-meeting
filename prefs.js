@@ -7,15 +7,17 @@ import {EDataServer, INSTALL_COMMAND, loadError} from './deps.js';
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 function calendarName(source) {
-    if (source.display_name)
-        return source.display_name;
-    if (source.identity)
-        return source.identity;
+    for (const value of [source.display_name, source.identity]) {
+        if (typeof value === 'string' && value.trim())
+            return value.trim();
+    }
     if (source.uid.startsWith('#vcalendar-')) {
         const derived = source.uid.slice('#vcalendar-'.length).replace(/-/g, ' ');
-        return derived.charAt(0).toUpperCase() + derived.slice(1);
+        if (derived.trim())
+            return derived.charAt(0).toUpperCase() + derived.slice(1);
     }
-    return source.uid;
+    console.warn(`my-next-meeting: no name for source (uid ${JSON.stringify(source.uid)}, display_name ${JSON.stringify(source.display_name)}, identity ${JSON.stringify(source.identity)})`);
+    return source.uid || _('Unknown calendar');
 }
 
 export default class MyNextMeetingPreferences extends ExtensionPreferences {
