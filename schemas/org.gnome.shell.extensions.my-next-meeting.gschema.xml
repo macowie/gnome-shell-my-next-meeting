@@ -14,7 +14,7 @@
       <range min="0" max="4"/>
       <default>0</default>
       <summary>Position of the indicator in the top bar</summary>
-      <description>0=left, 1=center, 2=right, 3=far left, 4=far right (default, keeps the historical right-most spot)</description>
+      <description>0=left, 1=center, 2=right, 3=far left, 4=far right</description>
     </key>
     <key name="early-join-minutes" type="i">
       <range min="0" max="60"/>
