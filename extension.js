@@ -130,7 +130,7 @@ function eventLabel(calEvent, now) {
 const Indicator = GObject.registerClass(
 class Indicator extends PanelMenu.Button {
     _init(settings) {
-        super._init(0.0, _('My Next Meeting'));
+        super._init(0.5, _('My Next Meeting')); // 0.5 = menu centered on the indicator
         this._settings = settings;
         this._clients = new Map(); // source uid -> ECal.Client
         this._events = [];
@@ -183,23 +183,26 @@ class Indicator extends PanelMenu.Button {
     }
 
     // Mirrors Vitals' panel positions. Returns [alignment, position] and sets the
-    // menu arrow so the dropdown opens from the correct edge of the button.
+    // menu arrow so the dropdown is always centered on the indicator, whichever
+    // box of the top bar it sits in.
     _positionInPanel() {
-        let alignment, position, arrowPos;
+        let alignment, position;
         switch (this._settings.get_int('position-in-panel')) {
         case 0: // left
-            alignment = 'left'; position = -1; arrowPos = 1; break;
+            alignment = 'left'; position = -1; break;
         case 1: // center
-            alignment = 'center'; position = -1; arrowPos = 0.5; break;
+            alignment = 'center'; position = -1; break;
         case 2: // right
-            alignment = 'right'; position = 0; arrowPos = 0; break;
+            alignment = 'right'; position = 0; break;
         case 3: // far left
-            alignment = 'left'; position = 0; arrowPos = 1; break;
+            alignment = 'left'; position = 0; break;
         case 4: // far right (default: the historical right-most spot)
         default:
-            alignment = 'right'; position = -1; arrowPos = 0; break;
+            alignment = 'right'; position = -1; break;
         }
-        this.menu._arrowAlignment = arrowPos;
+        // 0.5 puts the arrow in the middle of the menu, so the menu is centered
+        // on the indicator instead of hanging off to one side of it.
+        this.menu._arrowAlignment = 0.5;
         return [alignment, position];
     }
 
@@ -253,26 +256,16 @@ class Indicator extends PanelMenu.Button {
                             continue;
                         }
                         for (const {ic, start, end} of instances) {
-                            if (!start) {
-                                console.log(`my-next-meeting: ${source.display_name}: skip, start is null`);
+                            if (!start || start.is_date())
+                                continue; // all-day events are not meetings
+                            if (statusOf(ic).toUpperCase() === 'CANCELLED')
                                 continue;
-                            }
-                            const isDate = start.is_date();
-                            const status = statusOf(ic);
-                            const cancelled = status.toUpperCase() === 'CANCELLED';
-                            if (!isDate && !cancelled) {
-                                const su = toUnix(start);
-                                const eu = toUnix(end ?? start);
-                                console.log(`my-next-meeting: ${source.display_name}: keep ${ic.get_summary()} [${su} .. ${eu}] status=${status}`);
-                                events.push({
-                                    title: ic.get_summary() || _('(No title)'),
-                                    start: su,
-                                    end: eu,
-                                    url: findMeetingUrl(ic.as_ical_string()),
-                                });
-                            } else {
-                                console.log(`my-next-meeting: ${source.display_name}: skip ${ic.get_summary()} isDate=${isDate} status=${status}`);
-                            }
+                            events.push({
+                                title: ic.get_summary() || _('(No title)'),
+                                start: toUnix(start),
+                                end: toUnix(end ?? start),
+                                url: findMeetingUrl(ic.as_ical_string()),
+                            });
                         }
                     }
                     console.log(`my-next-meeting: ${source.display_name}: ${events.length} event(s) after expansion`);
@@ -302,7 +295,6 @@ class Indicator extends PanelMenu.Button {
         endOfDay.setHours(24, 0, 0, 0);
 
         const currentAndUpcoming = this._events.filter(e => e.end > threshold);
-        console.log(`my-next-meeting: render: ${this._events.length} event(s), threshold=${threshold} (now=${now}), ${currentAndUpcoming.length} pass end>threshold`);
         const next = currentAndUpcoming[0]; // Always grab the next event for the top entry, even if it's not today
         const ongoing = currentAndUpcoming.slice(1).filter(e => e.start <= threshold) // Also grab any other ongoing event as joinable
         const upcomingToday = currentAndUpcoming.slice(1).filter(e => e.start > threshold).filter(e => e.start < endOfDay / 1000); // Rest of the events today
