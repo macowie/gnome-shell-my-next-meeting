@@ -6,6 +6,18 @@ import {EDataServer, INSTALL_COMMAND, loadError} from './deps.js';
 
 import {ExtensionPreferences, gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+function calendarName(source) {
+    if (source.display_name)
+        return source.display_name;
+    if (source.identity)
+        return source.identity;
+    if (source.uid.startsWith('#vcalendar-')) {
+        const derived = source.uid.slice('#vcalendar-'.length).replace(/-/g, ' ');
+        return derived.charAt(0).toUpperCase() + derived.slice(1);
+    }
+    return source.uid;
+}
+
 export default class MyNextMeetingPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
@@ -63,11 +75,11 @@ export default class MyNextMeetingPreferences extends ExtensionPreferences {
         const registry = EDataServer.SourceRegistry.new_sync(null);
         const sources = registry.list_sources(EDataServer.SOURCE_EXTENSION_CALENDAR)
             .filter(s => s.enabled)
-            .sort((a, b) => a.display_name.localeCompare(b.display_name));
+            .sort((a, b) => calendarName(a).localeCompare(calendarName(b)));
 
         for (const source of sources) {
             const row = new Adw.SwitchRow({
-                title: source.display_name,
+                title: calendarName(source),
                 subtitle: registry.ref_source(source.parent)?.display_name ?? '',
                 active: !settings.get_strv('hidden-calendars').includes(source.uid),
             });
