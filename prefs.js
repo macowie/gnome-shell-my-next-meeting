@@ -83,6 +83,7 @@ export default class MyNextMeetingPreferences extends ExtensionPreferences {
             const row = new Adw.SwitchRow({
                 title: calendarName(source),
                 subtitle: registry.ref_source(source.parent)?.display_name ?? '',
+                use_markup: false,
                 active: !settings.get_strv('hidden-calendars').includes(source.uid),
             });
             row.connect('notify::active', () => {
