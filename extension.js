@@ -129,9 +129,10 @@ function eventLabel(calEvent, now) {
 
 const Indicator = GObject.registerClass(
 class Indicator extends PanelMenu.Button {
-    _init(settings) {
+    _init(settings, extension) {
         super._init(0.5, _('My Next Meeting')); // 0.5 = menu centered on the indicator
         this._settings = settings;
+        this._extension = extension;
         this._clients = new Map(); // source uid -> ECal.Client
         this._events = [];
         this._ticks = 0;
@@ -306,19 +307,25 @@ class Indicator extends PanelMenu.Button {
         if (this.menu.isOpen && !rebuildOpenMenu)
             return;
         this.menu.removeAll();
-        if (!next)
-            return;
 
-        this.addJoinMeetingEntry(next, "Join meeting")
-        for (const calEvent of ongoing) {
-            this.addJoinMeetingEntry(calEvent, eventLabel(calEvent, now));
-        }
+        if (next) {
+            this.addJoinMeetingEntry(next, "Join meeting")
+            for (const calEvent of ongoing) {
+                this.addJoinMeetingEntry(calEvent, eventLabel(calEvent, now));
+            }
 
-        if (upcomingToday.length)
+            if (upcomingToday.length)
+                this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            for (const calEvent of upcomingToday) {
+                this.addFutureTodayEntry(calEvent);
+            }
+
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        for (const calEvent of upcomingToday) {
-            this.addFutureTodayEntry(calEvent);
         }
+
+        const settingsItem = new PopupMenu.PopupMenuItem(_('Settings'));
+        settingsItem.connect('activate', () => this._extension.openPreferences());
+        this.menu.addMenuItem(settingsItem);
     }
 
     addJoinMeetingEntry(calEvent, label) {
@@ -367,7 +374,7 @@ class HelpIndicator extends PanelMenu.Button {
 
 export default class MyNextMeetingExtension extends Extension {
     enable() {
-        this._indicator = loadError ? new HelpIndicator() : new Indicator(this.getSettings());
+        this._indicator = loadError ? new HelpIndicator() : new Indicator(this.getSettings(), this);
         if (loadError) {
             Main.panel.addToStatusArea(this.uuid, this._indicator);
         } else {
