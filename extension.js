@@ -290,13 +290,14 @@ class Indicator extends PanelMenu.Button {
     _render(rebuildOpenMenu = false) {
         const now = Date.now() / 1000;
         const threshold = now + this._settings.get_int('early-join-minutes') * 60; // Shift cutoff so meetings can be joined early
-        const endOfDay = new Date();
-        endOfDay.setHours(24, 0, 0, 0);
+        const today = new Date();
+        today.setHours(24, 0, 0, 0);
+        const endOfDay = today / 1000;
 
-        const currentAndUpcoming = this._events.filter(e => e.end > threshold);
+        const currentAndUpcoming = this._events.filter(e => e.end > now);
         const next = currentAndUpcoming[0]; // Always grab the next event for the top entry, even if it's not today
         const ongoing = currentAndUpcoming.slice(1).filter(e => e.start <= threshold) // Also grab any other ongoing event as joinable
-        const upcomingToday = currentAndUpcoming.slice(1).filter(e => e.start > threshold).filter(e => e.start < endOfDay / 1000); // Rest of the events today
+        const upcomingToday = currentAndUpcoming.slice(1).filter(e => e.start > threshold).filter(e => e.start < endOfDay); // Rest of the events today
 
         this._label.text = !next ? _('No meetings')
             : eventLabel(next, now);
