@@ -122,10 +122,7 @@ const expandInstances = (client, obj, now, until) => {
     return [{ic: obj, start, end}];
 };
 
-function eventLabel(calEvent, now) {
-    return calEvent.start <= now ? `${_('now')}: ${calEvent.title}`
-    : `${_('in')} ${formatUntil(calEvent.start - now)}: ${calEvent.title}`;
-}
+const eventLabel = (calEvent, now) => calEvent.start <= now ? `${_('now')}: ${calEvent.title}` : `${_('in')} ${formatUntil(calEvent.start - now)}: ${calEvent.title}`;
 
 const Indicator = GObject.registerClass(
 class Indicator extends PanelMenu.Button {
@@ -250,10 +247,6 @@ class Indicator extends PanelMenu.Button {
                     const events = [];
                     for (const obj of objs) {
                         const instances = expandInstances(client, obj, now, until);
-                        if (!instances.length) {
-                            const dtstart = obj.get_dtstart();
-                            continue;
-                        }
                         for (const {ic, start, end} of instances) {
                             if (!start || start.is_date())
                                 continue; // all-day events are not meetings
