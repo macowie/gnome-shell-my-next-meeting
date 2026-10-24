@@ -3,7 +3,11 @@
   "description": "Display the next upcoming event in your topbar, and click to join",
   "uuid": "my-next-meeting@cowie.me",
   "shell-version": [
-    "50"
+    "48",
+    "49",
+    "50",
+    "51"
   ],
-  "settings-schema": "org.gnome.shell.extensions.my-next-meeting"
+  "settings-schema": "org.gnome.shell.extensions.my-next-meeting",
+  "url": "https://github.com/macowie/gnome-shell-my-next-meeting"
 }

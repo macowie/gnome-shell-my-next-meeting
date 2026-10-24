@@ -196,7 +196,7 @@ class Indicator extends PanelMenu.Button {
             alignment = 'right'; position = 0; break;
         case 3: // far left
             alignment = 'left'; position = 0; break;
-        case 4: // far right (default: the historical right-most spot)
+        case 4: // far right
         default:
             alignment = 'right'; position = -1; break;
         }
@@ -340,7 +340,6 @@ class Indicator extends PanelMenu.Button {
             ?.launch([], global.create_app_launch_context(0, -1)));
         this.menu.addMenuItem(item);
     }
-
 
     destroy() {
         this._gen = -1; // drop any in-flight fetch / registry callback
